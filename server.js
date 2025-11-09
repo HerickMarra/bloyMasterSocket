@@ -23,32 +23,27 @@ io.on("connection", (socket) => {
   console.log(`🟢 Jogador conectado: ${socket.id}`);
 
   // Quando o jogador entra no jogo
-  socket.on("joinGame", (data) => {
-  const room = data.room || "default";
-  const name = data.name || "SemNome";
+  socket.on("joinGame", (playerData) => {
+    players[socket.id] = {
+      id: socket.id,
+      name: playerData.name || "SemNome",
+      position: { x: 0, y: 0, z: 0 },
+      animator: {
+        "Speed": 0
+      }
+    };
+    
+    // Envia pra ele todos os outros jogadores
+    socket.emit("currentPlayers", players);
+    socket.emit("pushId", socket.id);
 
-  socket.join(room);
-
-  if (!players[room]) players[room] = {};
-
-  players[room][socket.id] = {
-    id: socket.id,
-    name,
-    position: { x: 0, y: 0, z: 0 },
-  };
-
-  console.log(`🟢 ${socket.id} entrou na sala ${room}`);
-
-  // Envia apenas pra ele os outros jogadores da mesma sala
-  socket.emit("currentPlayers", players[room]);
-  socket.emit("pushId", socket.id);
-
-  // Avisa os outros jogadores da sala
-  socket.to(room).emit("newPlayer", {
-    user: players[room][socket.id],
+    // Envia pros outros que um novo entrou
+    socket.broadcast.emit("newPlayer", {
+      user: players[socket.id]
+    });
   });
-});
 
+  // Atualização da posição do jogador
   socket.on("playerMove", (data) => {
   if (!players[socket.id]) return;
 
@@ -65,10 +60,11 @@ io.on("connection", (socket) => {
 
 });
 
+//Atualiza float no animator
 socket.on("playerAnimSetFloat", (data) => {
   if (!players[socket.id]) return;
 
-
+  players[socket.id].animator[data.param] = data.val
   // Envia para todos os outros jogadores
   socket.broadcast.emit("playerAnimGetFloat", {
     id: socket.id,
@@ -86,7 +82,7 @@ socket.on("playerAnimSetFloat", (data) => {
 
 
   // Quando o jogador sai
-  socket.on("disconnect", () => {
+socket.on("disconnect", () => {
     console.log(`🔴 Jogador saiu: ${socket.id}`);
     delete players[socket.id];
     io.emit("playerDisconnected", socket.id);
